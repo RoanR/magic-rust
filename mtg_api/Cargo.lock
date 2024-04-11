@@ -738,13 +738,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "magic-rust"
-version = "0.1.0"
-dependencies = [
- "mtg_api",
-]
-
-[[package]]
 name = "memchr"
 version = "2.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
