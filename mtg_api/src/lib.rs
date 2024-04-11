@@ -29,7 +29,7 @@ impl From<reqwest::Error> for APIError {
 }
 
 #[allow(dead_code)]
-async fn fetch_card_info(card_id: &str) -> Result<String, APIError> {
+async fn card_id_info(card_id: &str) -> Result<String, APIError> {
     // Define the URL for the API endpoint
     let url = format!("https://api.magicthegathering.io/v1/cards/{}", card_id);
 
@@ -58,7 +58,7 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_card_result() {
-        assert!(fetch_card_info("386616").await.is_ok());
-        assert!(fetch_card_info("as32as").await.is_err());
+        assert!(card_id_info("386616").await.is_ok());
+        assert!(card_id_info("as32as").await.is_err());
     }
 }
