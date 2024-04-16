@@ -28,8 +28,8 @@ impl From<reqwest::Error> for APIError {
     }
 }
 
-#[allow(dead_code)]
-async fn card_id_info(card_id: &str) -> Result<String, APIError> {
+/// Find a card by its numerical ID
+pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
     // Define the URL for the API endpoint
     let url = format!("https://api.magicthegathering.io/v1/cards/{}", card_id);
 
