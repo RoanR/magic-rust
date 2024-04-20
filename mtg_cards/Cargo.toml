@@ -12,3 +12,4 @@ mtg_api = { version = "*", path = "../mtg_api"}
 serde_json = { version = "1.0" }
 thiserror = {version = "1.0" }
 tokio = { version = "1.37", features = ["full"]}
+colored = { version = "2.1.0" }

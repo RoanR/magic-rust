@@ -1,10 +1,10 @@
-use mtg_cards;
+use mtg_cards::{self, id_find};
 
 #[tokio::main]
 async fn main() {
-    let card = mtg_cards::id_find(386616).await;
+    let card = id_find(386616).await;
     match card {
-        Ok(c) => println!("All is good!\n{:?}", c),
+        Ok(c) => println!("\n{}", c.card),
         Err(e) => println!("All is not good?\n{:?}", e),
     }
 }

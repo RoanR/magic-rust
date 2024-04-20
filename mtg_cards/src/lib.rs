@@ -1,6 +1,9 @@
 //! A library which interacts with [`mtg_api`] deserialising responses into Rust structs
 
 #![deny(missing_docs)]
+use std::fmt;
+
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -33,10 +36,11 @@ impl From<serde_json::Error> for MTGCardError {
     }
 }
 
+/// An Indiviual Magic The Gathering Card
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
-struct Card {
+pub struct Card {
     name: String,
     mana_cost: String,
     #[serde(rename = "type")]
@@ -47,10 +51,72 @@ struct Card {
     flavor: String,
 }
 
+impl Card {
+    fn display_divider(max: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for _ in 0..max {
+            write!(f, "-")?;
+        }
+        Ok(())
+    }
+    fn display_cols(
+        left: &str,
+        right: &str,
+        max: usize,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        let mut pad = " ".to_string();
+        while pad.len() + left.len() + right.len() < max {
+            pad += " ";
+        }
+        write!(f, "\n{}{}{}\n", left, pad, right)?;
+        Ok(())
+    }
+    fn display_wrap(body: &str, max: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut count = 0;
+        for ch in body.chars() {
+            if ch == '\n' {
+                count = 0;
+                write!(f, "{}", ch)?;
+            } else if count % max == 0 {
+                write!(f, "\n{}", ch)?;
+                count += 1;
+            } else {
+                write!(f, "{}", ch)?;
+                count += 1;
+            }
+        }
+        write!(f, "\n")?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for Card {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let maxl = 50;
+        Card::display_divider(maxl, f)?;
+
+        // Name and Manacost
+        Card::display_cols(&self.name, &self.mana_cost, maxl, f)?;
+        Card::display_divider(maxl, f)?;
+
+        // Types and rarity
+        Card::display_cols(&self.type_field, &self.rarity, maxl, f)?;
+        Card::display_divider(maxl, f)?;
+
+        // Text and Flavour
+        Card::display_wrap(&self.text, maxl, f)?;
+        Card::display_wrap(&self.flavor.italic(), maxl, f)?;
+        Card::display_cols(&"", &self.set_name, maxl, f)?;
+        Card::display_divider(maxl, f)?;
+        Ok(())
+    }
+}
+
 /// Wrapper struct for for individual
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct Cards {
-    card: Card,
+    /// The internal card being wrapped
+    pub card: Card,
 }
 
 /// Takes a card id to find and returns it deserialised into [`Cards`]
