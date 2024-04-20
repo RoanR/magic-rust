@@ -29,7 +29,7 @@ pub fn wrap(body: &str, max: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if ch == '\n' {
             count = 0;
             write!(f, "{}", ch)?;
-        } else if count % max == 0 {
+        } else if count % max == 0 && count != 0 {
             write!(f, "\n{}", ch)?;
             count += 1;
         } else {
@@ -125,9 +125,11 @@ mod tests {
             div: '.',
         };
 
-        assert_eq!(&format!("{tester}"), "     \n\nThis \nis a \ntest\n.....\n");
+        assert_eq!(&format!("{tester}"), "     \nThis \nis a \ntest\n.....\n");
         tester.line = 1;
-        assert_eq!(&format!("{tester}")[..10], " \n\nT\nh\ni\ns");
+        assert_eq!(&format!("{tester}")[..10], " \nT\nh\ni\ns\n");
         tester.line = 5;
+        tester.body = "New\nline".to_owned();
+        assert_eq!(&format!("{tester}"), "     \nNew\nline\n.....\n");
     }
 }
