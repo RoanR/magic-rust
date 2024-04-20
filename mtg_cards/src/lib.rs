@@ -4,9 +4,11 @@
 use std::fmt;
 
 use colored::Colorize;
+use display_cards::{cols, divider, wrap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod display_cards;
 /// Errors generated while making MTG Cards
 #[derive(Debug, Error)]
 pub enum MTGCardError {
@@ -51,63 +53,26 @@ pub struct Card {
     flavor: String,
 }
 
-impl Card {
-    fn display_divider(max: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for _ in 0..max {
-            write!(f, "-")?;
-        }
-        Ok(())
-    }
-    fn display_cols(
-        left: &str,
-        right: &str,
-        max: usize,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        let mut pad = " ".to_string();
-        while pad.len() + left.len() + right.len() < max {
-            pad += " ";
-        }
-        write!(f, "\n{}{}{}\n", left, pad, right)?;
-        Ok(())
-    }
-    fn display_wrap(body: &str, max: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut count = 0;
-        for ch in body.chars() {
-            if ch == '\n' {
-                count = 0;
-                write!(f, "{}", ch)?;
-            } else if count % max == 0 {
-                write!(f, "\n{}", ch)?;
-                count += 1;
-            } else {
-                write!(f, "{}", ch)?;
-                count += 1;
-            }
-        }
-        write!(f, "\n")?;
-        Ok(())
-    }
-}
+impl Card {}
 
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let maxl = 50;
-        Card::display_divider(maxl, f)?;
+        divider(maxl, '*', f)?;
 
         // Name and Manacost
-        Card::display_cols(&self.name, &self.mana_cost, maxl, f)?;
-        Card::display_divider(maxl, f)?;
+        cols(&self.name, &self.mana_cost, maxl, f)?;
+        divider(maxl, '-', f)?;
 
         // Types and rarity
-        Card::display_cols(&self.type_field, &self.rarity, maxl, f)?;
-        Card::display_divider(maxl, f)?;
+        cols(&self.type_field, &self.rarity, maxl, f)?;
+        divider(maxl, '-', f)?;
 
         // Text and Flavour
-        Card::display_wrap(&self.text, maxl, f)?;
-        Card::display_wrap(&self.flavor.italic(), maxl, f)?;
-        Card::display_cols(&"", &self.set_name, maxl, f)?;
-        Card::display_divider(maxl, f)?;
+        wrap(&self.text, maxl, f)?;
+        wrap(&self.flavor.italic(), maxl, f)?;
+        cols(&"", &self.set_name, maxl, f)?;
+        divider(maxl, '*', f)?;
         Ok(())
     }
 }
