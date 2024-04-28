@@ -5,6 +5,9 @@
 use reqwest::StatusCode;
 use thiserror::Error;
 
+/// Base URL of the REST API
+const CARDS_URL: &str = "https://api.magicthegathering.io/v1/cards";
+
 /// Errors generated while getting data from MTG api
 #[derive(Debug, Error)]
 pub enum APIError {
@@ -20,6 +23,12 @@ pub enum APIError {
         /// The Wrapped Error
         e: reqwest::Error,
     },
+    #[error("No Cards exist with name: {name}")]
+    /// When partial search returns no cards
+    NoSuchCardName {
+        /// The name searched for
+        name: String,
+    },
 }
 
 impl From<reqwest::Error> for APIError {
@@ -31,7 +40,7 @@ impl From<reqwest::Error> for APIError {
 /// Find a card by its numerical ID
 pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
     // Define the URL for the API endpoint
-    let url = format!("https://api.magicthegathering.io/v1/cards/{}", card_id);
+    let url = format!("{}/{}", CARDS_URL, card_id);
 
     // Perform the GET request
     let response = reqwest::get(&url).await?;
@@ -45,12 +54,31 @@ pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
     }
 }
 
-// fn main() -> Result<()> {
-//     // Call the async function to fetch and print card info with a specific card ID
-//     let a = task::block_on(fetch_card_info("386616"))?;
-//     println!("{}", a);
-//     Ok(())
-// }
+/// Find a card by its exact name
+#[allow(dead_code)]
+pub async fn card_exact_name_info(card_name: &str) -> Result<String, APIError> {
+    let url = format!("{}?name=\"{}\"", CARDS_URL, card_name);
+    println!("{url}");
+    let response = reqwest::get(&url).await?;
+
+    // Check the request was successful
+    if response.status().is_success() {
+        let text = response.text().await?;
+
+        // Check the cards returned are non-empty
+        if text == "{\"cards\":[]}" {
+            return Err(APIError::NoSuchCardName {
+                name: card_name.to_string(),
+            });
+        } else {
+            return Ok(text);
+        }
+    } else {
+        return Err(APIError::FailedRequest {
+            status: response.status(),
+        });
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -58,7 +86,19 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_card_result() {
-        assert!(card_id_info("386616").await.is_ok());
-        assert!(card_id_info("as32as").await.is_err());
+        let pass = card_id_info("386616");
+        let fail = card_id_info("as32as");
+        assert!(pass.await.is_ok());
+        assert!(fail.await.is_err());
+    }
+
+    #[tokio::test]
+    async fn fetch_name_result() {
+        let exact_pass = card_exact_name_info("Narset, Enlightened Master").await;
+
+        //let fail = card_name_info("FAKE CARD NAME").await;
+        assert!(exact_pass.is_ok());
+        //assert!(part_pass.is_ok());
+        println!("{}", exact_pass.unwrap());
     }
 }
