@@ -37,6 +37,16 @@ impl From<reqwest::Error> for APIError {
     }
 }
 
+fn check_for_empty(text: String, search: &str) -> Result<String, APIError> {
+    if text == "{\"cards\":[]}" {
+        Err(APIError::NoSuchCardName {
+            name: search.to_string(),
+        })
+    } else {
+        Ok(text)
+    }
+}
+
 /// Find a card by its numerical ID
 pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
     // Define the URL for the API endpoint
@@ -47,7 +57,7 @@ pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
 
     // Check if the request was successful
     match response.status().is_success() {
-        true => Ok(response.text().await?),
+        true => Ok(check_for_empty(response.text().await?, card_id)?),
         false => Err(APIError::FailedRequest {
             status: response.status(),
         }),
@@ -62,21 +72,11 @@ pub async fn card_exact_name_info(card_name: &str) -> Result<String, APIError> {
     let response = reqwest::get(&url).await?;
 
     // Check the request was successful
-    if response.status().is_success() {
-        let text = response.text().await?;
-
-        // Check the cards returned are non-empty
-        if text == "{\"cards\":[]}" {
-            return Err(APIError::NoSuchCardName {
-                name: card_name.to_string(),
-            });
-        } else {
-            return Ok(text);
-        }
-    } else {
-        return Err(APIError::FailedRequest {
+    match response.status().is_success() {
+        true => Ok(check_for_empty(response.text().await?, card_name)?),
+        false => Err(APIError::FailedRequest {
             status: response.status(),
-        });
+        }),
     }
 }
 
@@ -85,7 +85,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn fetch_card_result() {
+    async fn fetch_if_result() {
         let pass = card_id_info("386616");
         let fail = card_id_info("as32as");
         assert!(pass.await.is_ok());
@@ -95,10 +95,8 @@ mod tests {
     #[tokio::test]
     async fn fetch_name_result() {
         let exact_pass = card_exact_name_info("Narset, Enlightened Master").await;
-
-        //let fail = card_name_info("FAKE CARD NAME").await;
+        let exact_fail = card_exact_name_info("Narset, Unelightned Student").await;
         assert!(exact_pass.is_ok());
-        //assert!(part_pass.is_ok());
-        println!("{}", exact_pass.unwrap());
+        assert!(exact_fail.is_err());
     }
 }
