@@ -68,7 +68,6 @@ pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
 #[allow(dead_code)]
 pub async fn card_exact_name_info(card_name: &str) -> Result<String, APIError> {
     let url = format!("{}?name=\"{}\"", CARDS_URL, card_name);
-    println!("{url}");
     let response = reqwest::get(&url).await?;
 
     // Check the request was successful
