@@ -89,7 +89,7 @@ pub struct IndiCard {
     pub card: Card,
 }
 
-/// Takes a card id to find and returns it deserialised into [`Cards`]
+/// Takes a card id to find and returns it deserialised into [`IndiCard`]
 pub async fn id_find(id: u64) -> Result<IndiCard, MTGCardError> {
     let id_s = id.to_string();
     let json = mtg_api::card_id_info(&id_s).await?;
@@ -97,9 +97,16 @@ pub async fn id_find(id: u64) -> Result<IndiCard, MTGCardError> {
     Ok(res)
 }
 
-/// Takes a card name to find and returns it deserialised into [`Cards`]
+/// Takes a card name to find and returns them deserialised into [`MultiCards`]
 pub async fn name_find(name: &str) -> Result<MultiCards, MTGCardError> {
     let json = mtg_api::card_exact_name_info(name).await?;
+    let res: MultiCards = serde_json::from_str(&json)?;
+    Ok(res)
+}
+
+/// Takes a page number to fetch cards from and returns them deserialised into [`MultiCards`]
+pub async fn page_find(number: u64) -> Result<MultiCards, MTGCardError> {
+    let json = mtg_api::card_page(&number.to_string()).await?;
     let res: MultiCards = serde_json::from_str(&json)?;
     Ok(res)
 }
@@ -158,5 +165,18 @@ mod tests {
         let display = "**************************************************\nname                                          mana\n--------------------------------------------------\ntype                                        rarity\n--------------------------------------------------\nbody\nflavour\n                                               set\n**************************************************\n".to_string();
         let blank_display = format!("{}", blank);
         assert_eq!(display, blank_display);
+    }
+
+    #[tokio::test]
+    async fn find_page() {
+        let page_res = page_find(1).await;
+        assert!(page_res.is_ok());
+
+        let page = page_res.unwrap();
+        assert_eq!(page.cards[0].name, "Ancestor's Chosen");
+        assert_eq!(page.cards.len(), 100);
+
+        let page_res = page_find(u64::MAX).await;
+        assert!(page_res.is_err());
     }
 }
