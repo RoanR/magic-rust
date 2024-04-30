@@ -77,18 +77,31 @@ impl fmt::Display for Card {
     }
 }
 
-/// Wrapper struct for for individual
+/// Wrapper struct for multiple card responses individual
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct Cards {
+pub struct MultiCards {
+    /// The cards being wrapped
+    pub cards: Vec<Card>,
+}
+
+/// Wrapper struct for individual card response
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct IndiCard {
     /// The internal card being wrapped
     pub card: Card,
 }
-
 /// Takes a card id to find and returns it deserialised into [`Cards`]
-pub async fn id_find(id: u64) -> Result<Cards, MTGCardError> {
+pub async fn id_find(id: u64) -> Result<IndiCard, MTGCardError> {
     let id_s = id.to_string();
     let json = mtg_api::card_id_info(&id_s).await?;
-    let res: Cards = serde_json::from_str(&json)?;
+    let res: IndiCard = serde_json::from_str(&json)?;
+    Ok(res)
+}
+
+/// Takes a card name to find and returns it deserialised into [`Cards`]
+pub async fn name_find(name: &str) -> Result<MultiCards, MTGCardError> {
+    let json = mtg_api::card_exact_name_info(name).await?;
+    let res: MultiCards = serde_json::from_str(&json)?;
     Ok(res)
 }
 
@@ -97,13 +110,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn find_card() {
+    async fn find_card_id() {
         // Get a known card Narset, Enlightened Master
         let a = id_find(386616).await;
         assert!(a.is_ok());
 
         // Check Individual fields of card struct
-        let c = a.unwrap().card;
+        let c = &a.unwrap().card;
         assert_eq!(c.name, "Narset, Enlightened Master");
         assert_eq!(c.mana_cost, "{3}{U}{R}{W}");
         assert_eq!(c.type_field, "Legendary Creature — Human Monk");
@@ -114,6 +127,21 @@ mod tests {
 
         // Check is Error
         let a = id_find(173132123).await;
+        assert!(a.is_err());
+    }
+
+    #[tokio::test]
+    async fn find_card_name() {
+        // Get a known card Narset, Enlightened Master
+        let a = name_find("Narset, Enlightened Master").await;
+        assert!(a.is_ok());
+
+        // Check it returned the correct card
+        let b = id_find(386616).await;
+        assert_eq!(a.unwrap().cards[0], b.unwrap().card);
+
+        // Check it returns an error
+        let a = name_find("Narset, Unenlightened Student").await;
         assert!(a.is_err());
     }
 }
