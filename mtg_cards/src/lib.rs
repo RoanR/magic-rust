@@ -53,8 +53,6 @@ pub struct Card {
     flavor: String,
 }
 
-impl Card {}
-
 impl fmt::Display for Card {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let maxl = 50;
@@ -90,6 +88,7 @@ pub struct IndiCard {
     /// The internal card being wrapped
     pub card: Card,
 }
+
 /// Takes a card id to find and returns it deserialised into [`Cards`]
 pub async fn id_find(id: u64) -> Result<IndiCard, MTGCardError> {
     let id_s = id.to_string();
@@ -143,5 +142,21 @@ mod tests {
         // Check it returns an error
         let a = name_find("Narset, Unenlightened Student").await;
         assert!(a.is_err());
+    }
+
+    #[test]
+    fn display_card() {
+        let blank: Card = Card {
+            name: "name".to_string(),
+            mana_cost: "mana".to_string(),
+            type_field: "type".to_string(),
+            rarity: "rarity".to_string(),
+            set_name: "set".to_string(),
+            text: "body".to_string(),
+            flavor: "flavour".to_string(),
+        };
+        let display = "**************************************************\nname                                          mana\n--------------------------------------------------\ntype                                        rarity\n--------------------------------------------------\nbody\nflavour\n                                               set\n**************************************************\n".to_string();
+        let blank_display = format!("{}", blank);
+        assert_eq!(display, blank_display);
     }
 }
