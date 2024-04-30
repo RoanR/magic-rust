@@ -79,6 +79,23 @@ pub async fn card_exact_name_info(card_name: &str) -> Result<String, APIError> {
     }
 }
 
+/// Get a page of cards
+pub async fn card_page(page_number: &str) -> Result<String, APIError> {
+    let url = format!("{}?page={}", CARDS_URL, page_number);
+    let response = reqwest::get(&url).await?;
+
+    // Check if the request was successful
+    match response.status().is_success() {
+        true => Ok(check_for_empty(
+            response.text().await?,
+            &format!("Page number {}", page_number),
+        )?),
+        false => Err(APIError::FailedRequest {
+            status: response.status(),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -97,5 +114,13 @@ mod tests {
         let exact_fail = card_exact_name_info("Narset, Unelightned Student").await;
         assert!(exact_pass.is_ok());
         assert!(exact_fail.is_err());
+    }
+
+    #[tokio::test]
+    async fn fetch_page_result() {
+        let page_pass = card_page("1").await;
+        let page_fail = card_page(&format!("{}", u32::MAX)).await;
+        assert!(page_pass.is_ok());
+        assert!(page_fail.is_err());
     }
 }
