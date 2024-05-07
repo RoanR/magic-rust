@@ -96,6 +96,20 @@ pub async fn card_page(page_number: &str) -> Result<String, APIError> {
     }
 }
 
+/// Get header from a page of cards request
+pub async fn header_card_page(page_number: &str) -> Result<HeaderMap, APIError> {
+    let url = format!("{}?page={}", CARDS_URL, page_number);
+    let response = reqwest::get(&url).await?;
+
+    // Check if request was successful
+    match response.status().is_success() {
+        true => Ok(response.headers().clone()),
+        false => Err(APIError::FailedRequest {
+            status: response.status(),
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,5 +136,21 @@ mod tests {
         let page_fail = card_page(&format!("{}", u32::MAX)).await;
         assert!(page_pass.is_ok());
         assert!(page_fail.is_err());
+    }
+
+    #[tokio::test]
+    async fn fetch_page_headers() {
+        let headers_res = header_card_page("0").await;
+        assert!(headers_res.is_ok());
+        let headers = headers_res.unwrap();
+        assert_eq!(48, headers.capacity());
+        assert!(headers.get("total-count").is_some());
+        let total_count = headers.get("total-count").unwrap().to_str().unwrap();
+        assert_eq!("81967", total_count);
+
+        let header_res = header_card_page(&format!("{}", u32::MAX)).await;
+        let page_res = card_page(&format!("{}", u32::MAX)).await;
+        assert!(header_res.is_ok());
+        assert!(page_res.is_err());
     }
 }
