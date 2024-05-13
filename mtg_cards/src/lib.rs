@@ -1,6 +1,7 @@
 //! A library which interacts with [`mtg_api`] deserialising responses into Rust structs
 
 #![deny(missing_docs)]
+use reqwest::Response;
 use std::fmt;
 
 use colored::Colorize;
@@ -10,7 +11,7 @@ use thiserror::Error;
 
 mod display_cards;
 /// Errors generated while making MTG Cards
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum MTGCardError {
     #[error("Wrapped API Error: {e}")]
     /// Contains Errors from the [`mtg_api`]
@@ -22,8 +23,11 @@ pub enum MTGCardError {
     /// Contains Errors from the deserialisation of Json
     WrappedSerde {
         /// The Wrapped Error
-        e: serde_json::Error,
+        e: String,
     },
+    #[error("No Card Found")]
+    /// Error for when no card can be found by given identifier
+    NoCardError {},
 }
 
 impl From<mtg_api::APIError> for MTGCardError {
@@ -34,7 +38,9 @@ impl From<mtg_api::APIError> for MTGCardError {
 
 impl From<serde_json::Error> for MTGCardError {
     fn from(value: serde_json::Error) -> Self {
-        MTGCardError::WrappedSerde { e: value }
+        MTGCardError::WrappedSerde {
+            e: value.to_string(),
+        }
     }
 }
 
@@ -82,6 +88,19 @@ pub struct MultiCards {
     pub cards: Vec<Card>,
 }
 
+impl MultiCards {
+    /// Attempt to convert a [`Response`] into [`MultiCards`]
+    pub async fn from_response(res: Response) -> Result<Self, MTGCardError> {
+        match mtg_api::check_for_empty(res).await? {
+            Some(json) => {
+                let res: MultiCards = serde_json::from_str(&json)?;
+                Ok(res)
+            }
+            None => Err(MTGCardError::NoCardError {}),
+        }
+    }
+
+
 /// Wrapper struct for individual card response
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct IndiCard {
@@ -89,26 +108,34 @@ pub struct IndiCard {
     pub card: Card,
 }
 
+impl IndiCard {
+    /// Construct an individual card struct or error if empty
+    pub async fn from_response(res: Response) -> Result<Self, MTGCardError> {
+        match mtg_api::check_for_empty(res).await? {
+            Some(json) => {
+                let res: IndiCard = serde_json::from_str(&json)?;
+                Ok(res)
+            }
+            None => Err(MTGCardError::NoCardError {}),
+        }
+    }
+}
+
 /// Takes a card id to find and returns it deserialised into [`IndiCard`]
 pub async fn id_find(id: u64) -> Result<IndiCard, MTGCardError> {
     let id_s = id.to_string();
-    let json = mtg_api::card_id_info(&id_s).await?;
-    let res: IndiCard = serde_json::from_str(&json)?;
-    Ok(res)
+    Ok(IndiCard::from_response(mtg_api::card_id_info(&id_s).await?).await?)
 }
 
 /// Takes a card name to find and returns them deserialised into [`MultiCards`]
 pub async fn name_find(name: &str) -> Result<MultiCards, MTGCardError> {
-    let json = mtg_api::card_exact_name_info(name).await?;
-    let res: MultiCards = serde_json::from_str(&json)?;
-    Ok(res)
+    Ok(MultiCards::from_response(mtg_api::card_exact_name_info(name).await?).await?)
 }
 
 /// Takes a page number to fetch cards from and returns them deserialised into [`MultiCards`]
 pub async fn page_find(number: u64) -> Result<MultiCards, MTGCardError> {
-    let json = mtg_api::card_page(&number.to_string()).await?;
-    let res: MultiCards = serde_json::from_str(&json)?;
-    Ok(res)
+    let index = number.to_string();
+    Ok(MultiCards::from_response(mtg_api::card_page(&index).await?).await?)
 }
 
 #[cfg(test)]

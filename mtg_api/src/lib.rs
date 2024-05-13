@@ -2,14 +2,14 @@
 //!
 //! See: https://docs.magicthegathering.io/
 #![deny(missing_docs)]
-use reqwest::StatusCode;
+use reqwest::{Response, StatusCode};
 use thiserror::Error;
 
 /// Base URL of the REST API
 const CARDS_URL: &str = "https://api.magicthegathering.io/v1/cards";
 
 /// Errors generated while getting data from MTG api
-#[derive(Debug, Error)]
+#[derive(Clone, Debug, Error)]
 pub enum APIError {
     /// When Get request fails
     #[error("Get Request failed with status code: {status}")]
@@ -21,7 +21,7 @@ pub enum APIError {
     /// Contain other misc errors from [`reqwest`] crate
     WrappedReqwest {
         /// The Wrapped Error
-        e: reqwest::Error,
+        e: String,
     },
     #[error("No Cards exist with name: {name}")]
     /// When partial search returns no cards
@@ -33,81 +33,60 @@ pub enum APIError {
 
 impl From<reqwest::Error> for APIError {
     fn from(value: reqwest::Error) -> Self {
-        APIError::WrappedReqwest { e: value }
+        APIError::WrappedReqwest {
+            e: value.to_string(),
+        }
     }
 }
 
-fn check_for_empty(text: String, search: &str) -> Result<String, APIError> {
+/// Check if there are cards returned in the response
+pub async fn check_for_empty(res: Response) -> Result<Option<String>, APIError> {
+    let text = res.text().await?;
     if text == "{\"cards\":[]}" {
-        Err(APIError::NoSuchCardName {
-            name: search.to_string(),
-        })
+        Ok(None)
     } else {
-        Ok(text)
+        Ok(Some(text))
+    }
+}
+
+async fn get_request(url: &str) -> Result<Response, APIError> {
+    // Perform the GET request
+    let response = reqwest::get(url).await?;
+
+    // Check if the request was successful
+    match response.status().is_success() {
+        true => Ok(response),
+        false => Err(APIError::FailedRequest {
+            status: response.status(),
+        }),
     }
 }
 
 /// Find a card by its numerical ID
-pub async fn card_id_info(card_id: &str) -> Result<String, APIError> {
+pub async fn card_id_info(card_id: &str) -> Result<Response, APIError> {
     // Define the URL for the API endpoint
     let url = format!("{}/{}", CARDS_URL, card_id);
 
     // Perform the GET request
-    let response = reqwest::get(&url).await?;
-
-    // Check if the request was successful
-    match response.status().is_success() {
-        true => Ok(check_for_empty(response.text().await?, card_id)?),
-        false => Err(APIError::FailedRequest {
-            status: response.status(),
-        }),
-    }
+    get_request(&url).await
 }
 
 /// Find a card by its exact name
-#[allow(dead_code)]
-pub async fn card_exact_name_info(card_name: &str) -> Result<String, APIError> {
+pub async fn card_exact_name_info(card_name: &str) -> Result<Response, APIError> {
+    // Define the URL for the API endpoint
     let url = format!("{}?name=\"{}\"", CARDS_URL, card_name);
-    let response = reqwest::get(&url).await?;
 
-    // Check the request was successful
-    match response.status().is_success() {
-        true => Ok(check_for_empty(response.text().await?, card_name)?),
-        false => Err(APIError::FailedRequest {
-            status: response.status(),
-        }),
-    }
+    // Perform the GET request
+    get_request(&url).await
 }
 
 /// Get a page of cards
-pub async fn card_page(page_number: &str) -> Result<String, APIError> {
+pub async fn card_page(page_number: &str) -> Result<Response, APIError> {
+    // Define the URL for the API endpoint
     let url = format!("{}?page={}", CARDS_URL, page_number);
-    let response = reqwest::get(&url).await?;
 
-    // Check if the request was successful
-    match response.status().is_success() {
-        true => Ok(check_for_empty(
-            response.text().await?,
-            &format!("Page number {}", page_number),
-        )?),
-        false => Err(APIError::FailedRequest {
-            status: response.status(),
-        }),
-    }
-}
-
-/// Get header from a page of cards request
-pub async fn header_card_page(page_number: &str) -> Result<HeaderMap, APIError> {
-    let url = format!("{}?page={}", CARDS_URL, page_number);
-    let response = reqwest::get(&url).await?;
-
-    // Check if request was successful
-    match response.status().is_success() {
-        true => Ok(response.headers().clone()),
-        false => Err(APIError::FailedRequest {
-            status: response.status(),
-        }),
-    }
+    // Perform the GET request
+    get_request(&url).await
 }
 
 #[cfg(test)]
@@ -115,7 +94,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn fetch_if_result() {
+    async fn fetch_id_result() {
         let pass = card_id_info("386616");
         let fail = card_id_info("as32as");
         assert!(pass.await.is_ok());
@@ -126,31 +105,28 @@ mod tests {
     async fn fetch_name_result() {
         let exact_pass = card_exact_name_info("Narset, Enlightened Master").await;
         let exact_fail = card_exact_name_info("Narset, Unelightned Student").await;
+        // Check internal pass
         assert!(exact_pass.is_ok());
-        assert!(exact_fail.is_err());
+        let exact_pass_res = exact_pass.unwrap();
+        assert!(check_for_empty(exact_pass_res).await.unwrap().is_some());
+        // Check internal err
+        assert!(exact_fail.is_ok());
+        let exact_fail_res = exact_fail.unwrap();
+        assert!(check_for_empty(exact_fail_res).await.unwrap().is_none());
     }
 
     #[tokio::test]
-    async fn fetch_page_result() {
+    async fn fetch_page_header() {
         let page_pass = card_page("1").await;
-        let page_fail = card_page(&format!("{}", u32::MAX)).await;
         assert!(page_pass.is_ok());
-        assert!(page_fail.is_err());
-    }
+        let response = page_pass.unwrap();
 
-    #[tokio::test]
-    async fn fetch_page_headers() {
-        let headers_res = header_card_page("0").await;
-        assert!(headers_res.is_ok());
-        let headers = headers_res.unwrap();
+        // Check Header
+        let headers = response.headers();
         assert_eq!(48, headers.capacity());
+        // Check total-count
         assert!(headers.get("total-count").is_some());
         let total_count = headers.get("total-count").unwrap().to_str().unwrap();
         assert_eq!("81967", total_count);
-
-        let header_res = header_card_page(&format!("{}", u32::MAX)).await;
-        let page_res = card_page(&format!("{}", u32::MAX)).await;
-        assert!(header_res.is_ok());
-        assert!(page_res.is_err());
     }
 }
