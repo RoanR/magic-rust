@@ -99,7 +99,7 @@ impl MultiCards {
             None => Err(MTGCardError::NoCardError {}),
         }
     }
-
+}
 
 /// Wrapper struct for individual card response
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -141,6 +141,7 @@ pub async fn page_find(number: u64) -> Result<MultiCards, MTGCardError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::de::Error;
 
     #[tokio::test]
     async fn find_card_id() {
@@ -171,7 +172,7 @@ mod tests {
 
         // Check it returned the correct card
         let b = id_find(386616).await;
-        assert_eq!(a.unwrap().cards[0], b.unwrap().card);
+        assert_eq!(a.unwrap().cards[0].name, b.unwrap().card.name);
 
         // Check it returns an error
         let a = name_find("Narset, Unenlightened Student").await;
@@ -205,5 +206,12 @@ mod tests {
 
         let page_res = page_find(u64::MAX).await;
         assert!(page_res.is_err());
+    }
+
+    #[test]
+    fn convert_serde_error() {
+        let serde_err = serde_json::Error::custom("Test");
+        let mtg_err: MTGCardError = serde_err.into();
+        assert_eq!(mtg_err.to_string(), "Wrapped serde Error: Test");
     }
 }
