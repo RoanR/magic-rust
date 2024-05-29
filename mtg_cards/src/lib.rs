@@ -8,8 +8,9 @@ use colored::Colorize;
 use display_cards::{cols, divider, wrap};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
 mod display_cards;
+mod header_cards;
+
 /// Errors generated while making MTG Cards
 #[derive(Clone, Debug, Error)]
 pub enum MTGCardError {

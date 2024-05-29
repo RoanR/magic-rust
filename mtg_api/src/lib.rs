@@ -127,6 +127,6 @@ mod tests {
         // Check total-count
         assert!(headers.get("total-count").is_some());
         let total_count = headers.get("total-count").unwrap().to_str().unwrap();
-        assert_eq!("81967", total_count);
+        assert_eq!("93643", total_count);
     }
 }
